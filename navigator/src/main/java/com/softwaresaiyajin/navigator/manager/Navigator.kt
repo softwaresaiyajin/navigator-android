@@ -1,6 +1,7 @@
 package com.softwaresaiyajin.navigator.manager
 
 import com.softwaresaiyajin.navigator.model.*
+import kotlin.reflect.KClass
 
 /**
  * Created by geraldadorza on 4/10/2018.
@@ -13,41 +14,45 @@ class Navigator {
 
     private var pathNotFoundObserver: PathNotFoundObserver? = null
 
-    private var events: HashMap<String, NavigationEvent> = HashMap()
+    private var events: HashMap<LocationId, IEvent> = HashMap()
 
-    val mappedLocations: List<String>
-        get() = events.map { String.format("%s => %s", it.key, it.value.detail) }
+    private fun <T: LocationType> createInterfaceFromLambdaExpression(
+            observer: (NavigationEvent<T>) -> Unit): NavigationEvent.IObserver<T> {
+        return object: NavigationEvent.IObserver<T> {
+            override fun onNavigate(event: NavigationEvent<T>) {
+                observer.invoke(event)
+            }
+        }
+    }
 
     fun mapPathNotFound(observer: PathNotFoundObserver?): Navigator {
         pathNotFoundObserver = observer
         return this
     }
 
-    fun <T: LocationInstance> map(ids: List<String>,
-                                  location: T,
-                                  observer: NavigationEventObserver): Navigator {
+    fun <T: LocationType> map(ids: List<LocationId>,
+                              location: KClass<T>,
+                              observer: (NavigationEvent<T>) -> Unit): Navigator {
 
-        val event = NavigationEvent(location, observer)
+        val event = NavigationEvent(location, createInterfaceFromLambdaExpression(observer))
         ids.forEach { events[it] = event }
         return this
     }
 
-    fun <T: LocationType> map(ids: List<String>,
-                              location: LocationType,
-                              observer: NavigationEventObserver): Navigator {
+    fun <T: LocationType> map(ids: List<LocationId>,
+                              location: T,
+                              observer: (NavigationEvent<T>) -> Unit): Navigator {
 
-        val event = NavigationEvent(location, observer)
+        val event = NavigationEvent(location, createInterfaceFromLambdaExpression(observer))
         ids.forEach { events[it] = event }
         return this
     }
 
-    fun navigate(id: String, data: Any? = null) {
+    fun navigate(id: LocationId, data: LocationData? = null) {
 
         val location = events[id]
-        if (location != null && location?.isValid) {
-            location.notifyObserver(data)
-        }
-        else {
+        val isSuccess = location?.notifyObserver(data) ?: false
+        if (!isSuccess) {
             pathNotFoundObserver?.invoke(id, data)
         }
     }

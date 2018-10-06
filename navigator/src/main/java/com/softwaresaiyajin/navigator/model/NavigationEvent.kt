@@ -7,52 +7,52 @@ import kotlin.reflect.KClass
  * Created by geraldadorza on 3/10/2018.
  */
 
-
-typealias LocationInstance = String
-typealias LocationType = KClass<LocationInstance>
-typealias NavigationEventObserver = (NavigationEvent) -> Unit
+typealias LocationId = String
+typealias LocationData = Any
+typealias LocationType = String
 typealias PathNotFoundObserver = (String, Any?) -> Unit
 
-class NavigationEvent {
+internal interface IEvent {
+    fun notifyObserver(data: LocationData?): Boolean
+}
 
-    private var observer: NavigationEventObserver? = null
+class NavigationEvent<Destination: LocationType>: IEvent {
 
-    private var instance: LocationInstance? = null
+    internal interface IObserver<T: LocationType> {
+        fun onNavigate(event: NavigationEvent<T>)
+    }
 
-    private var type: LocationType? = null
+    private var observer: IObserver<Destination>? = null
 
-    private val value: LocationInstance?
-        get() = instance ?: null
+    private var instance: Destination? = null
 
-    val destination: LocationInstance
-        get() = value!!
+    private var type: KClass<Destination>? = null
 
-    private var _data: Any? = null
+    var data: LocationData? = null
+        private set
 
-    val data: Any? get() = _data
+    lateinit var destination: Destination
+        private set
 
-    internal constructor(type: LocationType, observer: NavigationEventObserver?) {
+    internal constructor(type: KClass<Destination>, observer: IObserver<Destination>) {
         this.type = type
         setObserver(observer)
     }
 
-    internal constructor(instance: LocationInstance, observer: NavigationEventObserver?) {
+    internal constructor(instance: Destination, observer: IObserver<Destination>?) {
         this.instance = instance
         setObserver(observer)
     }
 
-    private fun setObserver(observer: NavigationEventObserver?) {
+    private fun setObserver(observer: IObserver<Destination>?) {
         this.observer = observer
     }
 
-    internal val detail: Any?
-        get() = value?.toString()
-
-    internal val isValid: Boolean
-        get() = value != null
-
-    internal fun notifyObserver(data: Any?) {
-        _data = data
-        observer?.invoke(this)
+    override fun notifyObserver(data: LocationData?): Boolean {
+        val value = instance ?: return false
+        destination = value
+        this.data = data
+        observer?.onNavigate(this)
+        return true
     }
 }
